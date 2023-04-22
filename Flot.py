@@ -4,10 +4,12 @@ import discord
 from dotenv import load_dotenv
 from discord.ext import commands
 
-from replit import db
+from tinydb import TinyDB, Query
+db = TinyDB("db.json")
+User = Query()
 
 load_dotenv(".env")
-TOKEN = os.environ["TOKEN"]
+TOKEN = os.getenv("TOKEN")
 PREFIX = "F"
 WIDTH = 8
 HEIGHT = 8
@@ -17,59 +19,67 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=f'{PREFIX}', intents=intents)
 
+def _get_field(ctx):
+    return db.search(User.server == str(ctx.guild.id))[0]["field"]
+
 
 async def on_ready():
     if "Field" not in db.keys():
-        db["Field"] == "None"
-    blueSquare = "🔳"
+        db.insert({"Server":bot.guilds,"Field": "None"})
+    emptyField = "🔳"
+    blueSquare = "🟦"
     brownSquare = "🟫"
     greenSquare = "🟩"
     violetSquare = "🟪"
     orangeSquare = "🟧"
-    yellowSquare = 🟨
+    yellowSquare = "🟨"
 
-    @commands.command()
-    async def on_member_join(member):
-        print("someone joined")
-        await member.create_dm()
-        await member.dm_channel.send(
-            f"Hi... \n"
-            f"Your Name is {member.name}"
-        )
 
-    @bot.command()
-    @commands.has_role("admin")
-    async def startNewGame(context):
-        if db["Field"] != "None":
-            await context.send(f"There is already a game running! \n You can end the current game with {PREFIX}endGame")
-            return
+@bot.command()
+async def init(ctx: discord.Message):
+    if not db.search(User.server == f"{ctx.guild.id}"):
+        db.insert({"server": str(ctx.guild.id), "field": "None"})
+        await ctx.send("Initiated Flot!")
+    else:
+        await ctx.send("Already Initiated")
 
-        field = []
-        for i in range(WIDTH * HEIGHT):
+
+
+@bot.command()
+@commands.has_role("admin")
+async def startNewGame(context):
+    if _get_field(context) != "None":
+        await context.send(f"There is already a game running! \n You can end the current game with {PREFIX}endGame")
+        return
+    field = []
+    for i in range(WIDTH):
+        for j in range(HEIGHT):
             field.append("🔳")
+        field.append("\n")
+    db.update({"field":field}, User.server == str(context.guild.id))
 
-    @bot.command()
-    async def Field(ctx):
-        printField(ctx)
 
-    @bot.event
-    async def on_command_error(ctx, error):
-        if isinstance(error, commands.errors.CheckFailure):
-            await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
-        if isinstance(error, commands.errors.UserInputError):
-            await ctx.send("Wrong Usage of this command!")
 
-    async def printField(context):
-        await contex.send(db["Field"])
 
-    bot.run(TOKEN)
+@bot.command()
+async def Field(ctx):
+    output= "".join(_get_field(ctx))
+    await ctx.send(output)
 
-    @bot.event
+@commands.has_role("admin")
+@bot.command()
+async def endGame(ctx):
+    db.update({"field": "None"}, User.server == str(ctx.guild.id))
+
+
+
+@bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
     if isinstance(error, commands.errors.UserInputError):
         await ctx.send("Wrong Usage of this command!")
+    await ctx.send("Some Unknown Error ocurred!")
 
 
 bot.run(TOKEN)
