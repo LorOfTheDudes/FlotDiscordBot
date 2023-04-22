@@ -9,53 +9,62 @@ from replit import db
 load_dotenv(".env")
 TOKEN = os.environ["TOKEN"]
 PREFIX = "F"
+WIDTH = 8
+HEIGHT = 8
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-
 bot = commands.Bot(command_prefix=f'{PREFIX}', intents=intents)
 
 
-@commands.command()
-async def on_member_join(member):
-    print("someone joined")
-    await member.create_dm()
-    await member.dm_channel.send(
-        f"Hi... \n"
-        f"Your Name is {member.name}"
-    )
+async def on_ready():
+    if "Field" not in db.keys():
+        db["Field"] == "None"
+    blueSquare = "🔳"
+    brownSquare = "🟫"
+    greenSquare = "🟩"
+    violetSquare = "🟪"
+    orangeSquare = "🟧"
+    yellowSquare = 🟨
 
-@bot.command()
-async def saveValue(context, *, args):
-  print("THis got called")
-  user_keys = db.prefix(f"{context.user}")
-  if len(user_keys) == 0:
-    db[f"{context.user}key"] = "0"
-    db[f"{context.user}{db[f'{context.user}key']}"] = f"{args}"
-  else:
-    key = db[f"{context.user}key"]
-    db[f"{context.user}key"] = f"{int(key)+1}"
-    db[f"{context.user}{db[f'{context.user}key']}"] = f"{args}"
-  print(db.keys)  
+    @commands.command()
+    async def on_member_join(member):
+        print("someone joined")
+        await member.create_dm()
+        await member.dm_channel.send(
+            f"Hi... \n"
+            f"Your Name is {member.name}"
+        )
 
+    @bot.command()
+    @commands.has_role("admin")
+    async def startNewGame(context):
+        if db["Field"] != "None":
+            await context.send(f"There is already a game running! \n You can end the current game with {PREFIX}endGame")
+            return
 
-@bot.command()
-@commands.has_role("admin")
-async def startNewGame(context, *, args):
-  #creating the field
-  self.field = ""
-  for i in range(8):
-    self.field += "🔳" * 8 +"\n"
+        field = []
+        for i in range(WIDTH * HEIGHT):
+            field.append("🔳")
 
+    @bot.command()
+    async def Field(ctx):
+        printField(ctx)
 
-@bot.command()
-async def Field(ctx):
-  await ctx.send(self.field)
-  
+    @bot.event
+    async def on_command_error(ctx, error):
+        if isinstance(error, commands.errors.CheckFailure):
+            await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
+        if isinstance(error, commands.errors.UserInputError):
+            await ctx.send("Wrong Usage of this command!")
 
+    async def printField(context):
+        await contex.send(db["Field"])
 
-@bot.event
+    bot.run(TOKEN)
+
+    @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
