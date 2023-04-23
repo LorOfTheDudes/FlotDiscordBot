@@ -14,10 +14,59 @@ PREFIX = "F"
 WIDTH = 8
 HEIGHT = 8
 
+emptyField = "🔳"
+blueSquare = "🟦"
+brownSquare = "🟫"
+greenSquare = "🟩"
+violetSquare = "🟪"
+orangeSquare = "🟧"
+yellowSquare = "🟨"
+redSquare = "🟥"
+
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix=f'{PREFIX}', intents=intents)
+
+class choosePlayerFirstRow(discord.ui.View):
+    @discord.ui.button(emoji=orangeSquare)
+    async def orange(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose ORANGE as your Player")
+
+    @discord.ui.button(
+                       emoji=brownSquare)
+    async def brown(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose BROWN as your player")
+
+    @discord.ui.button(emoji=redSquare)
+    async def red(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose RED as your player")
+
+    @discord.ui.button(emoji=violetSquare)
+    async def violet(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose VIOLET as your player")
+
+    @discord.ui.button(emoji=greenSquare)
+    async def green(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose GREEN as your player")
+
+class choosePlayerSecondRow(discord.ui.View):
+    @discord.ui.button(emoji=yellowSquare)
+    async def yellow(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose YELLOW as your Player")
+
+    @discord.ui.button(
+        emoji=blueSquare)
+    async def blue(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose BLUE as your player")
+
+
+
+@bot.command()
+async def test(ctx):
+    await ctx.send(view=choosePlayerFirstRow())
+    await ctx.send(view=choosePlayerSecondRow())
+
 
 def _get_field(ctx):
     return db.search(User.server == str(ctx.guild.id))[0]["field"]
@@ -26,20 +75,12 @@ def _get_field(ctx):
 async def on_ready():
     if "Field" not in db.keys():
         db.insert({"Server":bot.guilds,"Field": "None"})
-    emptyField = "🔳"
-    blueSquare = "🟦"
-    brownSquare = "🟫"
-    greenSquare = "🟩"
-    violetSquare = "🟪"
-    orangeSquare = "🟧"
-    yellowSquare = "🟨"
-
 
 @bot.command()
 async def init(ctx: discord.Message):
     if not db.search(User.server == f"{ctx.guild.id}"):
         db.insert({"server": str(ctx.guild.id), "field": "None"})
-        await ctx.send("Initiated Flot!")
+        await ctx.send(_get_field(ctx))
     else:
         await ctx.send("Already Initiated")
 
@@ -57,6 +98,7 @@ async def startNewGame(context):
             field.append("🔳")
         field.append("\n")
     db.update({"field":field}, User.server == str(context.guild.id))
+    await context.send("Choose your Player")
 
 
 
