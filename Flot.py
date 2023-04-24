@@ -32,7 +32,7 @@ class choosePlayerFirstRow(discord.ui.View):
     @discord.ui.button(emoji=orangeSquare)
     async def orange(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("You choose ORANGE as your Player")
-
+        db.update({str(interaction.user.id) : "orange"})
     @discord.ui.button(
                        emoji=brownSquare)
     async def brown(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -78,11 +78,11 @@ async def on_ready():
 
 @bot.command()
 async def init(ctx: discord.Message):
-    if not db.search(User.server == f"{ctx.guild.id}"):
-        db.insert({"server": str(ctx.guild.id), "field": "None"})
-        await ctx.send(_get_field(ctx))
-    else:
-        await ctx.send("Already Initiated")
+    guild = ctx.guild
+    if str(guild) not in db.tables():
+        table = db.table(str(guild.name))
+        field = [0 for i in range(WIDTH*HEIGHT)]
+        table.insert({"Field": field})
 
 
 
@@ -122,6 +122,13 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.UserInputError):
         await ctx.send("Wrong Usage of this command!")
     await ctx.send("Some Unknown Error ocurred!")
+
+def _get_guild_table(ctx):
+    for table in db.tables():
+        table: db.table_class
+        if table.name == ctx.guild.id:
+            return table
+    return None
 
 
 bot.run(TOKEN)
