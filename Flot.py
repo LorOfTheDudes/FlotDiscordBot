@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from discord.ext import commands
 
 from tinydb import TinyDB, Query
-db = TinyDB("db.json")
+db = TinyDB("Flot.json")
 User = Query()
 
 load_dotenv(".env")
@@ -14,7 +14,7 @@ PREFIX = "F"
 WIDTH = 8
 HEIGHT = 8
 
-emptyField = "🔳"
+blackSquare = "🔳"
 blueSquare = "🟦"
 brownSquare = "🟫"
 greenSquare = "🟩"
@@ -68,21 +68,26 @@ async def test(ctx):
     await ctx.send(view=choosePlayerSecondRow())
 
 
-def _get_field(ctx):
-    return db.search(User.server == str(ctx.guild.id))[0]["field"]
-
-
-async def on_ready():
-    if "Field" not in db.keys():
-        db.insert({"Server":bot.guilds,"Field": "None"})
+def _get_field(ctx, table):
+    return table.search(User.server == str(ctx.guild.name))[0]["Field"]
 
 @bot.command()
 async def init(ctx: discord.Message):
     guild = ctx.guild
     if str(guild) not in db.tables():
-        table = db.table(str(guild.name))
-        field = [0 for i in range(WIDTH*HEIGHT)]
-        table.insert({"Field": field})
+        table = db.table(guild.name)
+
+        print(table)
+        table.insert({"server":f"{ctx.guild.name}"})
+        field = []
+        for i in range(WIDTH):
+            for j in range(HEIGHT):
+                field.append(0)
+            field.append("\n")
+        table.update({"Field": field}, User.server == str(ctx.guild.name))
+        await ctx.send("Initiated!")
+        return
+    await ctx.send("Already Initiated!")
 
 
 
@@ -105,7 +110,16 @@ async def startNewGame(context):
 
 @bot.command()
 async def Field(ctx):
-    output= "".join(_get_field(ctx))
+    table = db.table(str(ctx.guild.name))
+    print(ctx.guild)
+    print(table)
+    print(table.search(User.server == str(ctx.guild.name)))
+    output = ""
+    for field in _get_field(ctx, table):
+        if field == 0:
+            output += blackSquare
+        else:
+            output += str(field)
     await ctx.send(output)
 
 @commands.has_role("admin")
@@ -114,19 +128,23 @@ async def endGame(ctx):
     db.update({"field": "None"}, User.server == str(ctx.guild.id))
 
 
-
+"""
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
     if isinstance(error, commands.errors.UserInputError):
         await ctx.send("Wrong Usage of this command!")
-    await ctx.send("Some Unknown Error ocurred!")
-
+    if isinstance(error, commands.errors.CommandError):
+        print(error)
+        await ctx.send("Some Unknown Error ocurred!")
+"""
 def _get_guild_table(ctx):
     for table in db.tables():
+        print(db.tables())
+        print(table)
         table: db.table_class
-        if table.name == ctx.guild.id:
+        if table == ctx.guild.name:
             return table
     return None
 
