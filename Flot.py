@@ -1,3 +1,4 @@
+
 import os
 import discord
 
@@ -27,38 +28,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix=f'{PREFIX}', intents=intents)
-
-class choosePlayerFirstRow(discord.ui.View):
-    @discord.ui.button(emoji=orangeSquare)
-    async def orange(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose ORANGE as your Player")
-        db.update({str(interaction.user.id) : "orange"})
-    @discord.ui.button(
-                       emoji=brownSquare)
-    async def brown(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose BROWN as your player")
-
-    @discord.ui.button(emoji=redSquare)
-    async def red(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose RED as your player")
-
-    @discord.ui.button(emoji=violetSquare)
-    async def violet(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose VIOLET as your player")
-
-    @discord.ui.button(emoji=greenSquare)
-    async def green(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose GREEN as your player")
-
-class choosePlayerSecondRow(discord.ui.View):
-    @discord.ui.button(emoji=yellowSquare)
-    async def yellow(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose YELLOW as your Player")
-
-    @discord.ui.button(
-        emoji=blueSquare)
-    async def blue(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("You choose BLUE as your player")
 
 
 
@@ -90,24 +59,6 @@ async def init(ctx: discord.Message):
     await ctx.send("Already Initiated!")
 
 
-
-@bot.command()
-@commands.has_role("admin")
-async def startNewGame(context):
-    if _get_field(context) != "None":
-        await context.send(f"There is already a game running! \n You can end the current game with {PREFIX}endGame")
-        return
-    field = []
-    for i in range(WIDTH):
-        for j in range(HEIGHT):
-            field.append("🔳")
-        field.append("\n")
-    db.update({"field":field}, User.server == str(context.guild.id))
-    await context.send("Choose your Player")
-
-
-
-
 @bot.command()
 async def Field(ctx):
     table = db.table(str(ctx.guild.name))
@@ -128,17 +79,6 @@ async def endGame(ctx):
     db.update({"field": "None"}, User.server == str(ctx.guild.id))
 
 
-"""
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.errors.CheckFailure):
-        await ctx.send('Like Icarus you flew to high, and this is your Fall. *You do not have permission.*')
-    if isinstance(error, commands.errors.UserInputError):
-        await ctx.send("Wrong Usage of this command!")
-    if isinstance(error, commands.errors.CommandError):
-        print(error)
-        await ctx.send("Some Unknown Error ocurred!")
-"""
 def _get_guild_table(ctx):
     for table in db.tables():
         print(db.tables())
@@ -147,6 +87,53 @@ def _get_guild_table(ctx):
         if table == ctx.guild.name:
             return table
     return None
+
+
+class choosePlayerFirstRow(discord.ui.View):
+    @discord.ui.button(emoji=orangeSquare)
+    async def orange(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose ORANGE as your Player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id) : "orange"})
+    @discord.ui.button(
+                       emoji=brownSquare)
+    async def brown(self, interaction: discord.Interaction, button: discord.ui.Button):
+        #await interaction.response.send_message("You choose BROWN as your player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "brown"})
+
+    @discord.ui.button(emoji=redSquare)
+    async def red(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose RED as your player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "red"})
+
+    @discord.ui.button(emoji=violetSquare)
+    async def violet(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose VIOLET as your player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "orange"})
+
+    @discord.ui.button(emoji=greenSquare)
+    async def green(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose GREEN as your player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "green"})
+
+class choosePlayerSecondRow(discord.ui.View):
+    @discord.ui.button(emoji=yellowSquare)
+    async def yellow(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose YELLOW as your Player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "yellow"})
+
+    @discord.ui.button(
+        emoji=blueSquare)
+    async def blue(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("You choose BLUE as your player")
+        table = db.table(str(interaction.guild.name))
+        table.update({str(interaction.user.id): "blue"})
+
 
 
 bot.run(TOKEN)
