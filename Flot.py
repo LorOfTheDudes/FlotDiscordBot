@@ -1,12 +1,12 @@
+#TODO ADD ROLE GIVING
+#TODO add greying out choosen roles
 
 import os
-import time
 
 import discord
 from discord.ui import View
 
 from dotenv import load_dotenv
-from discord.ext import commands
 
 from tinydb import TinyDB, Query
 db = TinyDB("Flot.json")
@@ -38,16 +38,10 @@ async def on_message(message: discord.Message):
     if message.author == client.user:
         return
 
-
-    if message.content.startswith("Ftest"):
-        await message.author.send("Test", ephe)
-
-
     elif message.content.startswith("FField"):
-        table = table = db.table(message.guild.name)
+        table = db.table(message.guild.name)
         channel = message.channel
         originalMessage = await channel.fetch_message(_get_game_message_id(message))
-        originalMessageContent = originalMessage.content
         await message.delete()
         await originalMessage.delete()
         newMessage = await channel.send(originalMessage.content)
@@ -74,15 +68,8 @@ async def on_message(message: discord.Message):
 
 
     elif message.content.startswith("Fchoose"):
-        view = View()
-        button1 = discord.ui.Button(label="test")
-        view.from_message()
         await message.channel.send(view=choosePlayerFirstRow())
         await message.channel.send(view=choosePlayerSecondRow())
-
-    elif message.content.startswith("Fend"):
-        # TODO Add Admin only access
-        db.update({"field": "None"}, User.server == str(message.guild.id))
 
 
 class choosePlayerFirstRow(discord.ui.View):
