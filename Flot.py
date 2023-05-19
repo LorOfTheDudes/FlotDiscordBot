@@ -1,22 +1,24 @@
 #TODO ADD ROLE GIVING
-#TODO add greying out choosen roles
-#TODO fix multi picking and non functioning check, if is already picked
+#TODO ADD REACTION REMOVAL, ON PICKING A DIFFRENT ROLE
+# TODO IF IT IS THE FIRST COMMAND EVER USED, THEN UPDATE THE MESSAGE IN DB
 import os
+import random
 
 import discord
-from discord.components import Button, ButtonStyle, ActionRow
+from discord.ext import tasks
 
 from dotenv import load_dotenv
-
 from tinydb import TinyDB, Query
+
 db = TinyDB("Flot.json")
 User = Query()
 
 load_dotenv(".env")
 TOKEN = os.getenv("TOKEN")
 PREFIX = "F"
-WIDTH = 8
-HEIGHT = 8
+WIDTH = 14
+HEIGHT = 14
+HOURS_TWEEN_POINTS = 24
 
 blackSquare = "🔳"
 blueSquare = "🟦"
@@ -34,50 +36,100 @@ intents.members = True
 
 client = discord.Client(intents=intents)
 
+@tasks.loop(seconds=10)
+async def give_out_points(guild: discord.Guild):
+    print("Giving out points")
+    #should only be called once there is a message saved in the db
+    table = db.table(guild.name)
+    serverTable = table.search(User.server == str(guild.name))[0]
+    channel = guild.get_channel(serverTable["Message"]["channel"])
+    message = await channel.fetch_message(serverTable["Message"]["id"])
+    for player in _get_player_colors(message).keys():
+        playerDict: dict = serverTable[player]
+        playerDict.update({"points": (playerDict["points"]+1)})
+        table.update({player: playerDict})
+
 @client.event
-async def on_message(message: discord.Message):
-    if message.author == client.user:
-        return
-
-
-    elif message.content.startswith("Finit"):
-        channel = message.channel
-        guild = message.guild
-        if str(guild) not in db.tables():
+async def on_ready():
+    for guild in client.guilds:
+        if str(guild.name) not in db.tables():
+            #first time setup
             table = db.table(guild.name)
-            table.insert({"server": f"{message.guild.name}"})
+            table.insert({"server": f"{guild.name}"})
             field = []
             for i in range(WIDTH):
                 for j in range(HEIGHT):
                     field.append(0)
                 field.append("\n")
-            table.update({"Field": field}, User.server == str(message.guild.name))
-            new_message = await channel.send(_get_field_printform(message))
-            table.update({"Message": new_message.id})
-        await message.delete()
+            table.update({"Field": field}, User.server == str(guild.name))
+            table.update({"Configs": {"state": "preparing", "point_time": 600, "last_point_given": "Never",
+                                      "helper_message": "None"}})
+            table.update({"Message": {"id": "None", "channel": "None"}})
+        #check game state
+        #restart gameloop if game running
+        table = db.table(guild.name)
+        serverTable = table.search(User.server == str(guild.name))
+        if serverTable[0]["Configs"]["state"] == "running":
+            give_out_points.start(guild)
+
+
+
+@client.event
+async def on_message(message: discord.Message):
+    if message.author == client.user:
         return
 
+    table = db.table(message.guild.name)
+    if table.search(User.server == message.guild.name)[0]["Message"]["id"] != "None" and \
+            message.content.startswith("FField") or \
+            message.content.startswith("Fchoose") or \
+            message.content.startswith("Fstart"):
 
-    elif message.content.startswith("FField"):
+        print("Updating olb Msg")
+        originalMessage = await message.channel.fetch_message(_get_game_message_id(message))
+        await originalMessage.delete()
+
+    if message.content.startswith("FField"):
+        print("Executed FFIELD")
         table = db.table(message.guild.name)
         channel = message.channel
-        originalMessage = await channel.fetch_message(_get_game_message_id(message))
-        await message.delete()
-        await originalMessage.delete()
         newMessage = await channel.send(_get_field_printform(message))
-        table.update({"Message": newMessage.id})
+        _update_message(newMessage)
 
 
     elif message.content.startswith("Fchoose"):
+        print("Executed Fchoose")
         table = db.table(message.guild.name)
         channel = message.channel
-        originalMessage = await channel.fetch_message(_get_game_message_id(message))
-        await message.delete()
-        await originalMessage.delete()
         newMessage = await channel.send(content="Choose your player!")
         for color in gameColors:
             await newMessage.add_reaction(color)
-        table.update({"Message": newMessage.id})
+        _update_message(newMessage)
+
+    elif message.content.startswith("Fstart"):
+        print("Executed Fstart")
+        table = db.table(message.guild.name)
+        ConfigsDict: dict = table.search(User.server == message.guild.name)[0]["Configs"]
+        ConfigsDict.update({"state": "running"})
+        table.update({"Configs": ConfigsDict})
+        give_out_points.start(message.guild)
+
+        #put all chosen players somewhere
+        players = _get_player_colors(interaction=message)
+        field = _get_field(message, table)
+        for player in players.keys():
+            foundPlace = False
+            while foundPlace == False:
+                pos = random.randint(1, WIDTH*HEIGHT)
+                if field[(pos+(pos//WIDTH))-1] == 0:
+                    field[(pos+(pos//WIDTH))-1] = _string_to_emoji(players[player])
+                    foundPlace = True
+        table.update({"Field": field}, User.server == str(message.guild.name))
+        newMessage = await message.channel.send(_get_field_printform(message))
+        _update_message(newMessage)
+    await message.delete()
+
+
 
 
 @client.event
@@ -88,11 +140,11 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
     if reaction.message.content == "Choose your player!":
         CanPick, color = _player_choose_helper(reaction, user)
         if CanPick:
-
-
             positiveResponse = await reaction.message.channel.send(f"You picked player {color}!")
             await positiveResponse.delete(delay=10.0)
-
+        else:
+            negativeResponse = await reaction.message.channel.send("Someone else picked that color")
+            await negativeResponse.delete(delay=5.0)
 
 
 @client.event
@@ -117,10 +169,8 @@ def _get_player_colors(interaction):
     output = {}
     for player in interaction.guild.members:
         serverDict = dict(table.search(User.server == str(interaction.guild.name))[0])
-        print(player)
         if str(player.name) in serverDict:
-            output.update({str(player.name): str(serverDict[f"{player.name}"])})
-    print(output)
+            output.update({player.name: serverDict[player.name]["color"]})
     return output
 
 
@@ -137,7 +187,7 @@ def _get_field_printform(message: discord.Message):
 
 def _get_game_message_id(message: discord.Message):
     table = db.table(str(message.guild.name))
-    return table.search(User.server == str(message.guild.name))[0]["Message"]
+    return table.search(User.server == str(message.guild.name))[0]["Message"]["id"]
 
 
 def _emoji_to_string(emoji):
@@ -158,10 +208,20 @@ def _emoji_to_string(emoji):
 
 def _player_choose_helper(reaction: discord.Reaction, user):
     table = db.table(reaction.message.guild.name)
-    player_colors = _get_player_colors(reaction.message)
+    # is the user in the database?
+    serverTable = table.search(User.server == reaction.message.guild.name)[0]
+    if user.name not in serverTable:
+        table.update({user.name: {"color": "none", "points": 0, "hearts": 3}})
+
+    #is the chosen color valid?
+    player_colors = _get_player_colors(reaction.message) #TODO Update this to the new format
     if _emoji_to_string(reaction.emoji) not in player_colors.values():
-        table.update({user.name: _emoji_to_string(reaction.emoji)})
+        playerDict:dict = table.search(User.server == reaction.message.guild.name)[0][user.name]
+        playerDict.update({"color": _emoji_to_string(reaction.emoji)})
+        table.update({user.name: playerDict})
         return True, _emoji_to_string(reaction.emoji)
+    else:
+        return False, _emoji_to_string(reaction.emoji)
 
 def _string_to_emoji(string):
     if string == "orange": return orangeSquare
@@ -171,5 +231,11 @@ def _string_to_emoji(string):
     if string == "violet": return violetSquare
     if string == "green": return greenSquare
     if string == "red": return redSquare
+
+def _update_message(message: discord.Message):
+    table = db.table(message.guild.name)
+    MessageDict: dict = table.search(User.server == message.guild.name)[0]["Message"]
+    MessageDict.update({"id": message.id, "channel": message.channel.id})
+    table.update({"Message": MessageDict})
 
 client.run(TOKEN)
