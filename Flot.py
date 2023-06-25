@@ -74,7 +74,7 @@ async def on_ready():
             table.update({"Field": field}, User.server == str(guild.name))
             table.update({"Configs": {"state": "preparing", "point_time": 600, "last_point_given": "Never",
                                       "helper_message": "None"}})
-            table.update({"Message": {"id": "None", "channel": "None"}})
+            table.update({"Message": {"id": 0, "channel": 0}})
         #check game state
         #restart gameloop if game running
         table = db.table(guild.name)
@@ -118,7 +118,10 @@ async def on_message(message: discord.Message):
             #game already running, returning
             response = await message.channel.send("Game already started, here is the field again:")
             await response.delete(delay=5)
-
+            try:
+                give_out_points.start(message.guild)
+            except RuntimeError:
+                print("Game was still running, Point-Coroutine did not get restarted")
         else:
             ConfigsDict: dict = table.search(User.server == message.guild.name)[0]["Configs"]
             ConfigsDict.update({"state": "running"})
@@ -127,33 +130,35 @@ async def on_message(message: discord.Message):
             #put all chosen players somewhere
             players = _get_player_colors(interaction=message)
             field = _get_field(message, table)
+            print(players)
             for player in players.keys():
-                foundPlace = False
-                while foundPlace == False:
-                    pos = random.randint(1, WIDTH*HEIGHT)
-                    if field[(pos+(pos//WIDTH))-1] == 0:
-                        field[(pos+(pos//WIDTH))-1] = _string_to_emoji(players[player])
-                        foundPlace = True
-
+                while True:
+                    pos = random.randint(0, WIDTH*HEIGHT)
+                    if field[pos] == 0:
+                        field[pos] = _string_to_emoji(players[player])
+                        break
+            table.update({"Field": field})
+            print(field)
         newMessage = await message.channel.send(_get_field_printform(message))
         await newMessage.add_reaction(upArrow)
         await newMessage.add_reaction(downArrow)
         await newMessage.add_reaction(leftArrow)
         await newMessage.add_reaction(rightArrow)
-        give_out_points.start(message.guild)
+
     #handle the player sent, and the new Message:
 
     try:
-        if not table.search(User.server == str(message.guild.name))[0]["Message"]["id"] == "None":
-            oldMessage = await message.channel.fetch_message(_get_game_message_id(message))
-            await oldMessage.delete()
+        oldMessage = await message.channel.fetch_message(_get_game_message_id(message))
+        await oldMessage.delete()
+        print("deleted Old Message")
     except discord.errors.NotFound:
-        print("Did not find last Bot Message, it was propably deleted")
+        print("Did not find last Bot Message, it was probably deleted")
     finally:
         MessageDict: dict = table.search(User.server == message.guild.name)[0]["Message"]
         MessageDict.update({"id": newMessage.id, "channel": newMessage.channel.id})
         table.update({"Message": MessageDict})
         await message.delete()
+        print("deleted Player-sent Command")
 
 
 
@@ -164,8 +169,7 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
     if user == client.user:
         return
 
-    print(reaction.message.content)
-    print(_get_field_printform(message=reaction.message))
+    table = db.table(reaction.message.guild.name)
     if reaction.message.content == "Choose your player!":
         CanPick, color = _player_choose_helper(reaction, user)
         if CanPick:
@@ -174,15 +178,30 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
         else:
             negativeResponse = await reaction.message.channel.send("Someone else picked that color")
             await negativeResponse.delete(delay=5.0)
+    if reaction.emoji in [upArrow, downArrow, leftArrow, rightArrow] and _get_game_state(reaction.message) == "running":
+        if reaction.emoji == leftArrow:
+            field = _get_field(reaction.message, table)
 
-    if reaction.message.content == _get_field_printform(message=reaction.message):
-        print("Hit")
-        table = db.table(reaction.message.guild.name)
-        field: list = _get_field(reaction.message, table)
-        playerColors = _get_player_colors(reaction.message)
-        playerColor = playerColors[user.name]
-        if reaction == upArrow:
-            field[field.index(playerColor) - WIDTH-1] = playerColors[playerColor]
+            playerColors = _get_player_colors(reaction.message)
+            playerEmoji = _string_to_emoji(playerColors[user.name])
+            player = field.index(playerEmoji)
+            field[player-1] = playerEmoji
+            field[player] = blackSquare
+            table.update({"Field": field})
+        message = reaction.message
+        newMessage = await reaction.message.channel.send(_get_field_printform(reaction.message))
+        try:
+            if not table.search(User.server == str(message.guild.name))[0]["Message"]["id"] == 0:
+                oldMessage = await message.channel.fetch_message(_get_game_message_id(message))
+                await oldMessage.delete()
+        except discord.errors.NotFound:
+            print("Did not find last Bot Message, it was propably deleted")
+        finally:
+            MessageDict: dict = table.search(User.server == message.guild.name)[0]["Message"]
+            MessageDict.update({"id": newMessage.id, "channel": newMessage.channel.id})
+
+
+
 
 @client.event
 async def on_reaction_remove(reaction: discord.Reaction, user):
@@ -275,6 +294,9 @@ def _update_message(message: discord.Message):
     MessageDict.update({"id": message.id, "channel": message.channel.id})
     table.update({"Message": MessageDict})
 
+def _get_game_state(message:discord.Message):
+    table = db.table(str(message.guild.name))
+    return table.search(User.server == message.guild.name)[0]["Configs"]["state"]
 
 
 client.run(TOKEN)
