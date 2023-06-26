@@ -1,6 +1,7 @@
 #TODO ADD ROLE GIVING
 #TODO ADD REACTION REMOVAL, ON PICKING A DIFFRENT ROLE
 #TODO ADD CONFIGURABLE TIME TWEEN GIVING OUT POINTS/RANDOM
+#TODO ADD COLLISION TO MOVEMENT AND FIX MESSAGE DELETION FOR MOVING AROUND
 import os
 import random
 
@@ -179,17 +180,46 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
             negativeResponse = await reaction.message.channel.send("Someone else picked that color")
             await negativeResponse.delete(delay=5.0)
     if reaction.emoji in [upArrow, downArrow, leftArrow, rightArrow] and _get_game_state(reaction.message) == "running":
-        if reaction.emoji == leftArrow:
-            field = _get_field(reaction.message, table)
+        field = _get_field(reaction.message, table)
+        playerColors = _get_player_colors(reaction.message)
+        playerEmoji = _string_to_emoji(playerColors[user.name])
+        playerpos = field.index(playerEmoji)
 
-            playerColors = _get_player_colors(reaction.message)
-            playerEmoji = _string_to_emoji(playerColors[user.name])
-            player = field.index(playerEmoji)
-            field[player-1] = playerEmoji
-            field[player] = blackSquare
-            table.update({"Field": field})
+        if reaction.emoji == leftArrow:
+            if field[playerpos-1] != 0:
+                response = await reaction.message.channel.send("You cannot move there")
+                await response.delete(delay=5)
+            else:
+                field[playerpos-1] = playerEmoji
+                field[playerpos] = 0
+                table.update({"Field": field})
+        elif reaction.emoji == rightArrow:
+            if field[playerpos + 1] != 0:
+                response = await reaction.message.channel.send("You cannot move there")
+                await response.delete(delay=5)
+            else:
+                field[playerpos + 1] = playerEmoji
+                field[playerpos] = 0
+                table.update({"Field": field})
+        elif reaction.emoji == upArrow:
+            if field[playerpos - WIDTH-1] != 0:
+                response = await reaction.message.channel.send("You cannot move there")
+                await response.delete(delay=5)
+            else:
+                field[playerpos - WIDTH-1] = playerEmoji
+                field[playerpos] = 0
+                table.update({"Field": field})
+        elif reaction.emoji == downArrow:
+            if field[playerpos + WIDTH + 1] != 0:
+                response = await reaction.message.channel.send("You cannot move there")
+                await response.delete(delay=5)
+            else:
+                field[playerpos + WIDTH + 1] = playerEmoji
+                field[playerpos] = 0
+                table.update({"Field": field})
         message = reaction.message
         newMessage = await reaction.message.channel.send(_get_field_printform(reaction.message))
+
         try:
             if not table.search(User.server == str(message.guild.name))[0]["Message"]["id"] == 0:
                 oldMessage = await message.channel.fetch_message(_get_game_message_id(message))
@@ -199,7 +229,11 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
         finally:
             MessageDict: dict = table.search(User.server == message.guild.name)[0]["Message"]
             MessageDict.update({"id": newMessage.id, "channel": newMessage.channel.id})
-
+            table.update({"Message": MessageDict})
+        await newMessage.add_reaction(upArrow)
+        await newMessage.add_reaction(downArrow)
+        await newMessage.add_reaction(leftArrow)
+        await newMessage.add_reaction(rightArrow)
 
 
 
