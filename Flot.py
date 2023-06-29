@@ -1,7 +1,10 @@
 #TODO ADD ROLE GIVING
 #TODO ADD REACTION REMOVAL, ON PICKING A DIFFRENT ROLE
 #TODO ADD CONFIGURABLE TIME TWEEN GIVING OUT POINTS/RANDOM
-#TODO ADD COLLISION TO MOVEMENT AND FIX MESSAGE DELETION FOR MOVING AROUND
+#TODO ADD POINTS ACTUALLY DOIN SMTH
+#SHOOTING
+#GIVING POINTS
+#
 import os
 import random
 
@@ -140,6 +143,7 @@ async def on_message(message: discord.Message):
                         break
             table.update({"Field": field})
             print(field)
+            give_out_points.start(message.guild)
         newMessage = await message.channel.send(_get_field_printform(message))
         await newMessage.add_reaction(upArrow)
         await newMessage.add_reaction(downArrow)
@@ -184,39 +188,29 @@ async def on_reaction_add(reaction : discord.Reaction, user:discord.User):
         playerColors = _get_player_colors(reaction.message)
         playerEmoji = _string_to_emoji(playerColors[user.name])
         playerpos = field.index(playerEmoji)
-
+        response = 0
+        movedPos = 0
         if reaction.emoji == leftArrow:
-            if field[playerpos-1] != 0:
-                response = await reaction.message.channel.send("You cannot move there")
-                await response.delete(delay=5)
-            else:
-                field[playerpos-1] = playerEmoji
-                field[playerpos] = 0
-                table.update({"Field": field})
+            movedPos = playerpos-1
         elif reaction.emoji == rightArrow:
-            if field[playerpos + 1] != 0:
-                response = await reaction.message.channel.send("You cannot move there")
-                await response.delete(delay=5)
-            else:
-                field[playerpos + 1] = playerEmoji
-                field[playerpos] = 0
-                table.update({"Field": field})
+            movedPos = playerpos+1
         elif reaction.emoji == upArrow:
-            if field[playerpos - WIDTH-1] != 0:
-                response = await reaction.message.channel.send("You cannot move there")
-                await response.delete(delay=5)
-            else:
-                field[playerpos - WIDTH-1] = playerEmoji
-                field[playerpos] = 0
-                table.update({"Field": field})
+            movedPos =  playerpos - WIDTH-1
         elif reaction.emoji == downArrow:
-            if field[playerpos + WIDTH + 1] != 0:
-                response = await reaction.message.channel.send("You cannot move there")
-                await response.delete(delay=5)
-            else:
-                field[playerpos + WIDTH + 1] = playerEmoji
+            movedPos = playerpos + WIDTH + 1
+
+        if field[movedPos] == 0:
+            if _get_points(user.name, message=reaction.message) > 0:
+                _subtractPoints(user.name, amount=1, message=reaction.message)
                 field[playerpos] = 0
+                field[movedPos] = _string_to_emoji(playerColors[user.name])
                 table.update({"Field": field})
+            else:
+                response = await reaction.message.channel.send(f"You do not have enough points \n Current Points: {_get_points(user.name, reaction.message)}")
+                await response.delete(delay=5)
+        else:
+            response = await reaction.message.channel.send("You cannot move there!")
+            await response.delete(delay=5)
         message = reaction.message
         newMessage = await reaction.message.channel.send(_get_field_printform(reaction.message))
 
@@ -332,5 +326,16 @@ def _get_game_state(message:discord.Message):
     table = db.table(str(message.guild.name))
     return table.search(User.server == message.guild.name)[0]["Configs"]["state"]
 
+def _get_points(playerName: str, message: discord.Message):
+    table = db.table(message.guild.name)
+    return table.search(User.server == message.guild.name)[0][playerName]["points"]
+
+def _subtractPoints(playerName: str, amount: int, message):
+    message = message
+    table = db.table(message.guild.name)
+    points = db.table(message.guild.name).search(User.server == message.guild.name)[0][playerName]["points"]
+    playerDict = table.search(User.server == message.guild.name)[0][playerName]
+    playerDict["points"] = playerDict["points"] - amount
+    table.update({playerName: playerDict})
 
 client.run(TOKEN)
